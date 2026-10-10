@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitoreo Energético | Tesis UAN</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 font-sans antialiased selection:bg-blue-500 selection:text-white">
+
+    <!-- BANNER DE ALERTA DE SOBRECARGA -->
+    <div id="bannerAlerta" class="hidden bg-rose-500 text-white px-4 py-3 text-center font-medium text-sm transition-all duration-300 shadow-md">
+        ⚠️ ¡ADVERTENCIA: Se ha detectado una sobrecarga de potencia en el sistema! Revise los umbrales.
+    </div>
+
+    <div class="max-w-6xl mx-auto px-4 py-10">
+        <!-- Cabecera y Monitor de Salud de Nodos -->
+        <header class="mb-8 flex flex-col md:flex-row md:items-center md:justify-between border-b border-slate-200 pb-6 gap-4">
+            <div>
+                <h1 class="text-2xl font-semibold tracking-tight text-slate-900">Sistema de Monitoreo de Energía</h1>
+                <p class="text-sm text-slate-500 mt-1">Universidad Antonio Nariño — Prototipo IoT Multi-Nodo</p>
+            </div>
+            
+            <!-- Indicadores de Salud (Heartbeat) -->
+            <div class="flex items-center gap-4 bg-white p-3 rounded-2xl border border-slate-200/80 shadow-sm">
+                <span class="text-xs font-medium text-slate-400 uppercase tracking-wider">Salud Nodos:</span>
+                <div class="flex items-center gap-2">
+                    <span id="dotNodo1" class="w-3 h-3 rounded-full bg-slate-300"></span>
+                    <span class="text-xs font-semibold text-slate-700">Nodo 1</span>
+                </div>
+                <div class="flex items-center gap-2 opacity-50">
+                    <span id="dotNodo2" class="w-3 h-3 rounded-full bg-slate-300"></span>
+                    <span class="text-xs font-semibold text-slate-700">Nodo 2</span>
+                </div>
+                <div class="flex items-center gap-2 opacity-50">
+                    <span id="dotNodo3" class="w-3 h-3 rounded-full bg-slate-300"></span>
+                    <span class="text-xs font-semibold text-slate-700">Nodo 3</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Tarjetas de Telemetría en Vivo (Nodo 1 Principal) -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+            <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
+                <p class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">Voltaje</p>
+                <p class="text-3xl font-semibold text-slate-800"><span id="lblVol">0.0</span> <span class="text-base font-normal text-slate-400">V</span></p>
+            </div>
+            <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
+                <p class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">Corriente</p>
+                <p class="text-3xl font-semibold text-slate-800"><span id="lblCur">0.00</span> <span class="text-base font-normal text-slate-400">A</span></p>
+            </div>
+            <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
+                <p class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">Potencia Activa</p>
+                <p class="text-3xl font-semibold text-slate-800"><span id="lblPow">0.0</span> <span class="text-base font-normal text-slate-400">W</span></p>
+            </div>
+            <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
+                <p class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">Energía Acumulada</p>
+                <p class="text-3xl font-semibold text-slate-800"><span id="lblEne">0.000</span> <span class="text-base font-normal text-slate-400">kWh</span></p>
+            </div>
+        </div>
+
+        <!-- Analítica Temporal (Hoy, Semana, Mes) -->
+        <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm mb-8">
+            <h2 class="text-base font-semibold text-slate-800 mb-4">Consumo Histórico por Período</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                    <p class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Hoy</p>
+                    <p class="text-xl font-bold text-slate-800" id="kwhHoy">0.000 kWh</p>
+                    <p class="text-sm font-semibold text-emerald-600 mt-1" id="costoHoy">\$ 0.00</p>
+                </div>
+                <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                    <p class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Últimos 7 Días</p>
+                    <p class="text-xl font-bold text-slate-800" id="kwhSemana">0.000 kWh</p>
+                    <p class="text-sm font-semibold text-emerald-600 mt-1" id="costoSemana">\$ 0.00</p>
+                </div>
+                <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                    <p class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Último Mes (30 días)</p>
+                    <p class="text-xl font-bold text-slate-800" id="kwhMes">0.000 kWh</p>
+                    <p class="text-sm font-semibold text-emerald-600 mt-1" id="costoMes">\$ 0.00</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Panel Inferior: Configuración, Alertas y Tabla -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            <!-- Configuración de Tarifa y Umbrales -->
+            <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm lg:col-span-1 space-y-5">
+                <h2 class="text-base font-semibold text-slate-800">Parámetros del Sistema</h2>
+                
+                <div>
+                    <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Tarifa (COP / kWh)</label>
+                    <input type="number" id="inputTarifa" value="850" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500 font-medium" oninput="procesarDatosHistoricos()">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Umbral Máx. Potencia (W)</label>
+                    <input type="number" id="inputUmbral" value="500" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500 font-medium">
+                </div>
+
+                <div class="pt-4 border-t border-slate-100">
+                    <p class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Costo Total Actual</p>
+                    <p class="text-3xl font-bold text-emerald-600" id="lblCosto">\$ 0.00</p>
+                </div>
+            </div>
+
+            <!-- Tabla de Historial y Botón de Exportar a Excel -->
+            <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm lg:col-span-2 flex flex-col justify-between">
+                <div>
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-base font-semibold text-slate-800">Registro Cronológico</h2>
+                        <!-- Botón Exportar a Excel (CSV) -->
+                        <button onclick="exportarCSV()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-colors flex items-center gap-2">
+                            📥 Exportar a Excel (CSV)
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm">
+                            <thead>
+                                <tr class="border-b border-slate-100 text-slate-400 text-xs uppercase tracking-wider">
+                                    <th class="pb-3 font-medium">Fecha y Hora</th>
+                                    <th class="pb-3 font-medium">Potencia</th>
+                                    <th class="pb-3 font-medium">Energía Acumulada</th>
+                                    <th class="pb-3 font-medium">Costo Parcial</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tablaHistorial" class="divide-y divide-slate-50 text-slate-700 font-medium">
+                                <!-- Se llena dinámicamente -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            databaseURL: "https://tesis-uan-default-rtdb.firebaseio.com/"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        let datosGlobalesHistorial = [];
+        let ultimaEnergia = 0;
+        let ultimoTimestampNodo1 = 0;
+
+        // 1. Escuchar datos en tiempo real del Nodo 1 + Heartbeat
+        db.ref('nodos/nodo_1/actual').on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (!data) return;
+
+            const v = Number(data.voltaje || 0);
+            const i = Number(data.corriente || 0);
+            const p = Number(data.potencia || 0);
+            const e = Number(data.energia || 0);
+            ultimaEnergia = e;
+            ultimoTimestampNodo1 = data.timestamp || 0;
+
+            document.getElementById('lblVol').innerText = v.toFixed(1);
+            document.getElementById('lblCur').innerText = i.toFixed(2);
+            document.getElementById('lblPow').innerText = p.toFixed(1);
+            document.getElementById('lblEne').innerText = e.toFixed(3);
+
+            const tarifa = parseFloat(document.getElementById('inputTarifa').value) || 0;
+            document.getElementById('lblCosto').innerText = '\$ ' + (e * tarifa).toLocaleString('es-CO', {minimumFractionDigits: 1, maximumFractionDigits: 1});
+
+            // Verificar Sistema de Alertas (Umbral de Potencia)
+            const umbralMax = parseFloat(document.getElementById('inputUmbral').value) || 500;
+            const banner = document.getElementById('bannerAlerta');
+            if (p > umbralMax) {
+                banner.classList.remove('hidden');
+            } else {
+                banner.classList.add('hidden');
+            }
+        });
+
+        // 2. Monitor de Salud (Heartbeat Check cada 3 segundos)
+        setInterval(() => {
+            const dot = document.getElementById('dotNodo1');
+            const ahora = Date.now();
+            // Si el último reporte tiene más de 10 segundos de antigüedad, marcar como desconectado
+            if (ultimoTimestampNodo1 > 0 && (ahora - ultimoTimestampNodo1) < 10000) {
+                dot.className = "w-3 h-3 rounded-full bg-emerald-500 animate-pulse"; // En línea
+            } else {
+                dot.className = "w-3 h-3 rounded-full bg-rose-500 animate-ping"; // Desconectado / Sin señal
+            }
+        }, 3000);
+
+        // 3. Cargar historial para analítica y tabla
+        db.ref('nodos/nodo_1/historial').on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (!data) return;
+
+            datosGlobalesHistorial = [];
+            const tabla = document.getElementById('tablaHistorial');
+            tabla.innerHTML = '';
+
+            Object.keys(data).forEach(key => {
+                datosGlobalesHistorial.push(data[key]);
+            });
+
+            datosGlobalesHistorial.sort((a, b) => b.timestamp - a.timestamp);
+
+            const ultimos = datosGlobalesHistorial.slice(0, 7);
+            const tarifa = parseFloat(document.getElementById('inputTarifa').value) || 850;
+
+            ultimos.forEach(item => {
+                const p = Number(item.potencia || 0);
+                const e = Number(item.energia || 0);
+                let fechaFormateada = item.timestamp ? new Date(item.timestamp).toLocaleString('es-CO') : "Reciente";
+
+                const fila = `
+                    <tr class="hover:bg-slate-50/50 transition-colors">
+                        <td class="py-3 text-slate-500 text-xs">${fechaFormateada}</td>
+                        <td class="py-3">${p.toFixed(1)} W</td>
+                        <td class="py-3">${e.toFixed(3)} kWh</td>
+                        <td class="py-3 text-emerald-600 font-semibold">$ ${(e * tarifa).toFixed(1)}</td>
+                    </tr>
+                `;
+                tabla.insertAdjacentHTML('beforeend', fila);
+            });
+
+            procesarDatosHistoricos();
+        });
+
+        function procesarDatosHistoricos() {
+            if (datosGlobalesHistorial.length === 0) return;
+
+            const ahora = Date.now();
+            const unDiaMS = 24 * 60 * 60 * 1000;
+            const tarifa = parseFloat(document.getElementById('inputTarifa').value) || 850;
+
+            const regHoy = datosGlobalesHistorial.filter(item => (ahora - item.timestamp) <= unDiaMS);
+            const regSemana = datosGlobalesHistorial.filter(item => (ahora - item.timestamp) <= (7 * unDiaMS));
+            const regMes = datosGlobalesHistorial.filter(item => (ahora - item.timestamp) <= (30 * unDiaMS));
+
+            function calcularConsumo(registros) {
+                if (registros.length < 2) return 0;
+                let consumo = Number(registros[0].energia || 0) - Number(registros[registros.length - 1].energia || 0);
+                return consumo < 0 ? 0 : consumo;
+            }
+
+            const kwhHoy = calcularConsumo(regHoy);
+            const kwhSemana = calcularConsumo(regSemana);
+            const kwhMes = calcularConsumo(regMes);
+
+            document.getElementById('kwhHoy').innerText = kwhHoy.toFixed(3) + " kWh";
+            document.getElementById('costoHoy').innerText = "\$ " + (kwhHoy * tarifa).toLocaleString('es-CO', {maximumFractionDigits: 1});
+
+            document.getElementById('kwhSemana').innerText = kwhSemana.toFixed(3) + " kWh";
+            document.getElementById('costoSemana').innerText = "\$ " + (kwhSemana * tarifa).toLocaleString('es-CO', {maximumFractionDigits: 1});
+
+            document.getElementById('kwhMes').innerText = kwhMes.toFixed(3) + " kWh";
+            document.getElementById('costoMes').innerText = "\$ " + (kwhMes * tarifa).toLocaleString('es-CO', {maximumFractionDigits: 1});
+        }
+
+        // 4. Función para Exportar Historial a CSV (Compatible con Excel)
+        function exportarCSV() {
+            if (datosGlobalesHistorial.length === 0) {
+                alert("No hay datos históricos disponibles para exportar.");
+                return;
+            }
+
+            let csvContent = "data:text/csv;charset=utf-8,Fecha_Hora,Potencia_W,Energia_kWh\n";
+            
+            datosGlobalesHistorial.forEach(item => {
+                let fecha = item.timestamp ? new Date(item.timestamp).toISOString() : "";
+                let linea = `"${fecha}",${item.potencia},${item.energia}`;
+                csvContent += linea + "\r\n";
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "historial_energia_tesis.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+</body>
+</html>
