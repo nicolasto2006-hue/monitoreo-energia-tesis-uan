@@ -208,7 +208,7 @@ td{padding:12px 11px;border-bottom:1px solid var(--outline)}
       <table>
         <thead>
           <tr>
-            <th>FECHA Y HORA (MS)</th>
+            <th>FECHA Y HORA</th>
             <th>NODO ID</th>
             <th>NOMBRE</th>
             <th>POTENCIA (W)</th>
@@ -236,12 +236,13 @@ td{padding:12px 11px;border-bottom:1px solid var(--outline)}
   let globalHistorico = {};
   let selectedNodeId = "N01";
   let tariff = 850;
+  let ultimosLatidos = {}; // Control de tiempo para saber si el nodo está realmente online
 
   const colors = { "N01": "#14a78c", "N02": "#499fc7", "N03": "#e8a15c" };
   const ES = (n, d=1) => Number(n).toLocaleString('es-CO', { minimumFractionDigits: d, maximumFractionDigits: d });
   const COP = n => '\$ ' + Math.round(n).toLocaleString('es-CO');
 
-  // 1. Escuchar Nodos en Vivo
+  // 1. Escuchar Nodos en Vivo con Detección de Desconexión (Timeout)
   db.ref('nodos').on('value', (snapshot) => {
     const data = snapshot.val();
     if (!data) return;
@@ -250,33 +251,43 @@ td{padding:12px 11px;border-bottom:1px solid var(--outline)}
     
     let totalP = 0, totalE = 0, onlineCount = 0, alertCount = 0;
     let cardsHtml = '', tableHtml = '';
+    let tiempoActual = Date.now();
 
     Object.keys(data).forEach(id => {
       let n = data[id];
-      let p = n.potencia || 0;
+
+      // Registrar latido si el nodo reporta activo
+      if (n.estado === true) {
+        ultimosLatidos[id] = tiempoActual;
+      }
+
+      // Si pasan más de 10 segundos sin señal nueva, se fuerza a OFFLINE de forma automática
+      let ultimaVez = ultimosLatidos[id] || 0;
+      let estaRealmenteOnline = (tiempoActual - ultimaVez < 10000) && (n.estado === true);
+
+      let p = estaRealmenteOnline ? (n.potencia || 0) : 0;
       let e = n.energiaKWh || 0;
-      let v = n.voltaje || 0;
-      let c = n.corriente || 0;
+      let v = estaRealmenteOnline ? (n.voltaje || 0) : 0;
+      let c = estaRealmenteOnline ? (n.corriente || 0) : 0;
       let fp = n.factorPotencia || 0;
       let hz = n.frecuencia || 0;
       let umbral = n.umbral || 150;
-      let online = n.estado || false;
 
       totalP += p;
       totalE += e;
-      if (online) onlineCount++;
-      let isAlert = p > umbral;
+      if (estaRealmenteOnline) onlineCount++;
+      let isAlert = estaRealmenteOnline && (p > umbral);
       if (isAlert) alertCount++;
 
       cardsHtml += `
         <div class="node-card ${selectedNodeId === id ? 'selected' : ''}" onclick="selectNode('${id}')">
           <div class="node-top">
             <span>${id} · ESP32-C3</span>
-            <span style="color:${online ? '#84e8c5' : '#ffa6a5'}">${online ? 'ONLINE' : 'OFFLINE'}</span>
+            <span style="color:${estaRealmenteOnline ? '#84e8c5' : '#ffa6a5'}">${estaRealmenteOnline ? 'ONLINE' : 'OFFLINE'}</span>
           </div>
           <h3 style="font-size:15px;margin:8px 0 1px">${n.nombre || 'Nodo'}</h3>
-          <div class="node-value">${online ? ES(p, 0) + ' W' : '— W'}</div>
-          <div style="font-size:10px;color:var(--sub)">${v.toFixed(1)} V · FP ${fp.toFixed(2)}</div>
+          <div class="node-value">${estaRealmenteOnline ? ES(p, 0) + ' W' : '— W'}</div>
+          <div style="font-size:10px;color:var(--sub)">${estaRealmenteOnline ? v.toFixed(1) + ' V' : '0.0 V'} · FP ${fp.toFixed(2)}</div>
           ${isAlert ? '<div style="color:#ff706f;font-size:10px;margin-top:4px;font-weight:bold">⚠️ SOBREUMBRAL</div>' : ''}
         </div>
       `;
@@ -285,10 +296,10 @@ td{padding:12px 11px;border-bottom:1px solid var(--outline)}
         <tr>
           <td><b>${id}</b></td>
           <td>${n.nombre || 'Nodo'}</td>
-          <td><span class="flag ${online ? '' : 'bad'}">${online ? 'ACTIVO' : 'INACTIVO'}</span></td>
-          <td>${online ? ES(v, 1) : '—'}</td>
-          <td>${online ? ES(c, 2) : '—'}</td>
-          <td><b>${online ? ES(p, 1) : '—'}</b></td>
+          <td><span class="flag ${estaRealmenteOnline ? '' : 'bad'}">${estaRealmenteOnline ? 'ACTIVO' : 'INACTIVO'}</span></td>
+          <td>${estaRealmenteOnline ? ES(v, 1) : '—'}</td>
+          <td>${estaRealmenteOnline ? ES(c, 2) : '—'}</td>
+          <td><b>${estaRealmenteOnline ? ES(p, 1) : '—'}</b></td>
           <td>${ES(fp, 2)}</td>
           <td>${ES(hz, 1)}</td>
           <td>${ES(e, 3)}</td>
@@ -318,7 +329,6 @@ td{padding:12px 11px;border-bottom:1px solid var(--outline)}
     globalHistorico = data;
     let histHtml = '';
     
-    // Invertir para mostrar los más recientes arriba
     const keys = Object.keys(data).reverse();
     keys.forEach(key => {
       let item = data[key];
