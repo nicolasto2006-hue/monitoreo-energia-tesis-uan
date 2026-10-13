@@ -1,286 +1,406 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Monitoreo Energético | Tesis UAN</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>UAN · Centro de Control IoT - Tesis</title>
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<style>
+:root{--bg:#07111d;--panel:#101f31;--text:#edf5ff;--sub:#9aafc2;--muted:#7892a9;--accent:#36d4c4;--accent-ink:#4aead3;--accent-pale:#153e42;--outline:#24364a;--grid:#203248;--font:Inter,'Segoe UI',Arial,sans-serif;--radius:14px;--danger:#ff706f;--warning:#efb662}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(ellipse at 80% -15%,#12374a 0%,#07111d 42%);font:14px/1.55 var(--font);color:var(--text);min-height:100vh}
+.shell{max-width:1640px;margin:auto;padding:23px 34px 75px}
+.tech-header{display:flex;gap:20px;justify-content:space-between;align-items:center;padding:4px 0 16px;border-bottom:1px solid var(--outline)}
+.brandbox{display:flex;align-items:center;gap:11px}
+.roundmark{display:grid;place-items:center;width:39px;height:39px;background:var(--accent);color:#063444;border-radius:11px;font-weight:900;font-size:13px}
+.wordmark{font-weight:900;letter-spacing:1.4px;font-size:13px}.wordmark small{display:block;font-weight:500;color:var(--sub);font-size:10px}
+.pill{border:1px solid var(--outline);background:#123d3a;color:#72e7d3;border-radius:40px;padding:7px 11px;font-size:11px;font-weight:750}
+.pagehead{margin:30px 0 20px;display:flex;justify-content:space-between;align-items:end;gap:20px}
+.pagehead h1{font-size:36px;letter-spacing:-1.7px;margin:0 0 9px;font-weight:790}.pagehead h1 span{color:var(--accent)}
+.kpi-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.kpi{background:#0e1d30;border:1px solid #23384f;border-radius:13px;padding:20px}
+.kpi h3{margin:0 0 10px;color:var(--sub);font-size:11px;text-transform:uppercase;letter-spacing:.75px}
+.kpi .val{font-size:30px;font-weight:820;letter-spacing:-1.25px}
+.kpi .unit{font-size:12px;color:var(--sub)}
+.kpi .note{font-size:10px;color:var(--sub);margin-top:10px}
+.card{background:#101e30;border:1px solid var(--outline);border-radius:var(--radius);padding:19px;margin-top:18px}
+.card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:15px;margin-bottom:15px;flex-wrap:wrap}
+.card h2{font-size:14px;margin:0}.sub{font-size:11px;color:var(--sub);margin:5px 0 0}
+.tech-nodes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px}
+.node-card{border:1px solid #29445a;border-radius:13px;padding:16px;background:#102a38;color:#edf5ff;cursor:pointer;text-align:left;width:100%;transition:.15s}
+.node-card.selected{border-color:#51e1d0;background:#133f48;box-shadow:0 0 0 1px #31b1a448}
+.node-card:hover{transform:translateY(-2px)}
+.node-top{display:flex;justify-content:space-between;font-size:11px}
+.node-value{font-size:27px;font-weight:820;margin:10px 0}
+.main-grid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(295px,.85fr);gap:17px}
+.stack{display:grid;gap:17px}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:11.5px;white-space:nowrap}
+th{text-align:left;color:#87a7bb;font-size:10px;text-transform:uppercase;padding:11px;border-bottom:1px solid var(--outline)}
+td{padding:12px 11px;border-bottom:1px solid var(--outline)}
+.flag{font-size:10px;border-radius:25px;padding:4px 7px;background:#143b37;color:#72e7d3;font-weight:800}
+.flag.bad{background:#452a34;color:#ffa6ad}
+.btn{border:1px solid #2a4560;border-radius:8px;background:#163048;color:#c9e3ee;padding:9px 12px;font-size:11px;font-weight:780;cursor:pointer}
+.btn.primary{background:var(--accent);color:#052a30;border-color:var(--accent)}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:11px;color:var(--sub);font-weight:720}
+.field input,.field select{border:1px solid #2a4560;border-radius:10px;background:#0b192a;color:#ecf6ff;padding:9px 10px;width:100%;font-size:13px}
+.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
+.inlinefield{display:flex;gap:8px;align-items:center}
+.inlinefield select{background:#0b192a;border:1px solid #2a4560;border-radius:8px;padding:7px 9px;color:#ecf6ff}
+.metric-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.metric{padding:12px;background:#0a1829;border:1px solid #20364e;border-radius:12px}
+.metric small{display:block;font-size:10px;color:var(--sub)}
+.metric strong{font-size:16px;color:#d5f6f0}
+.chart{display:block;width:100%;height:auto;min-height:200px}
+.legend{display:flex;flex-wrap:wrap;gap:16px;font-size:11px;color:var(--sub)}
+.legend i{width:9px;height:9px;display:inline-block;border-radius:3px;margin-right:5px}
+.foot{border-top:1px solid var(--outline);font-size:10.5px;color:var(--sub);margin-top:26px;padding-top:18px;text-align:center}
+@media(max-width:1120px){.main-grid{grid-template-columns:1fr}.tech-nodes{grid-template-columns:1fr}}
+</style>
 </head>
-<body class="bg-slate-50 text-slate-900 font-sans antialiased selection:bg-blue-500 selection:text-white">
+<body>
+<div class="shell">
+  <header class="tech-header">
+    <div class="brandbox">
+      <span class="roundmark">UAN</span>
+      <div class="wordmark">CENTRO DE CONTROL / TESIS<small>ESP32-C3 + PZEM-004T + Firebase</small></div>
+    </div>
+    <div><span class="pill" id="conexionEstado">🟢 Conectando a Firebase...</span></div>
+  </header>
 
-    <!-- BANNER DE ALERTA DE SOBRECARGA -->
-    <div id="bannerAlerta" class="hidden bg-rose-500 text-white px-4 py-3 text-center font-medium text-sm transition-all duration-300 shadow-md">
-        ⚠️ ¡ADVERTENCIA: Se ha detectado una sobrecarga de potencia en el sistema! Revise los umbrales.
+  <div class="pagehead">
+    <div>
+      <div style="font-size:11px;letter-spacing:1.9px;text-transform:uppercase;font-weight:850;color:var(--accent);margin-bottom:7px">Instrumentación · Redes IoT</div>
+      <h1>Centro de control <span>IoT.</span></h1>
+      <p>Observabilidad técnica de tres nodos de adquisición independientes en tiempo real.</p>
+    </div>
+  </div>
+
+  <!-- KPI Grid -->
+  <section class="kpi-grid">
+    <article class="kpi">
+      <h3>Potencia Total Activa</h3>
+      <div class="val"><span id="kpiPotencia">0.0</span> <span class="unit">W</span></div>
+      <div class="note">Suma instantánea en vivo.</div>
+    </article>
+    <article class="kpi">
+      <h3>Energía Acumulada Conjunto</h3>
+      <div class="val"><span id="kpiEnergia">0.000</span> <span class="unit">kWh</span></div>
+      <div class="note">Acumulado total de los nodos.</div>
+    </article>
+    <article class="kpi">
+      <h3>Nodos En Línea</h3>
+      <div class="val" id="kpiNodos">0 / 3</div>
+      <div class="note">Estado por latido Firebase.</div>
+    </article>
+    <article class="kpi">
+      <h3>Condiciones de Alerta</h3>
+      <div class="val" id="kpiAlertas">0 <span class="unit">activas</span></div>
+      <div class="note">Superación de umbral.</div>
+    </article>
+  </section>
+
+  <!-- Estado de los 3 Nodos (Interactivos) -->
+  <div class="card">
+    <div class="card-head">
+      <div>
+        <h2>Estado de los Tres Dispositivos</h2>
+        <p class="sub">Seleccione un nodo haciendo clic sobre él para inspeccionar su diagnóstico detallado[cite: 4].</p>
+      </div>
+      <span class="flag">3 Canales Activos</span>
+    </div>
+    <div class="tech-nodes" id="nodeCardsContainer"></div>
+  </div>
+
+  <!-- Main Grid: Gráficos y Diagnóstico -->
+  <div class="main-grid">
+    <div class="stack">
+      <!-- Gráfico SVG de Perfiles con Selector de Visualización -->
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <h2>Perfiles horarios por carga</h2>
+            <p class="sub">Curvas de potencia comparativa[cite: 4].</p>
+          </div>
+          <div class="inlinefield">
+            <label for="traceSelect" style="font-size:11px;color:var(--sub);font-weight:750">Visualización</label>
+            <select id="traceSelect" onchange="renderProfileChart()">
+              <option value="all">Las tres cargas</option>
+              <option value="sum">Total del conjunto</option>
+              <option value="N01">Nodo 1 · N01</option>
+              <option value="N02">Nodo 2 · N02</option>
+              <option value="N03">Nodo 3 · N03</option>
+            </select>
+          </div>
+        </div>
+        <svg id="techProfile" class="chart" aria-label="Curvas de potencia"></svg>
+        <div class="legend" id="techLegend" style="margin-top:10px"></div>
+      </section>
+
+      <!-- Inventario Instrumental -->
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <h2>Inventario Instrumental</h2>
+            <p class="sub">Voltaje, corriente, potencia, factor de potencia y frecuencia.</p>
+          </div>
+          <button class="btn primary" onclick="exportarCSV()">↓ Tabla CSV</button>
+        </div>
+        <div class="tablewrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Nodo ID</th>
+                <th>Nombre / Carga</th>
+                <th>Estado</th>
+                <th>Voltaje (V)</th>
+                <th>Corriente (A)</th>
+                <th>Potencia (W)</th>
+                <th>FP</th>
+                <th>Hz</th>
+                <th>kWh</th>
+              </tr>
+            </thead>
+            <tbody id="tablaCuerpo"></tbody>
+          </table>
+        </div>
+      </section>
     </div>
 
-    <div class="max-w-6xl mx-auto px-4 py-10">
-        <!-- Cabecera y Monitor de Salud de Nodos -->
-        <header class="mb-8 flex flex-col md:flex-row md:items-center md:justify-between border-b border-slate-200 pb-6 gap-4">
-            <div>
-                <h1 class="text-2xl font-semibold tracking-tight text-slate-900">Sistema de Monitoreo de Energía</h1>
-                <p class="text-sm text-slate-500 mt-1">Universidad Antonio Nariño — Prototipo IoT Multi-Nodo</p>
-            </div>
-            
-            <!-- Indicadores de Salud (Heartbeat) -->
-            <div class="flex items-center gap-4 bg-white p-3 rounded-2xl border border-slate-200/80 shadow-sm">
-                <span class="text-xs font-medium text-slate-400 uppercase tracking-wider">Salud Nodos:</span>
-                <div class="flex items-center gap-2">
-                    <span id="dotNodo1" class="w-3 h-3 rounded-full bg-slate-300"></span>
-                    <span class="text-xs font-semibold text-slate-700">Nodo 1</span>
-                </div>
-                <div class="flex items-center gap-2 opacity-50">
-                    <span id="dotNodo2" class="w-3 h-3 rounded-full bg-slate-300"></span>
-                    <span class="text-xs font-semibold text-slate-700">Nodo 2</span>
-                </div>
-                <div class="flex items-center gap-2 opacity-50">
-                    <span id="dotNodo3" class="w-3 h-3 rounded-full bg-slate-300"></span>
-                    <span class="text-xs font-semibold text-slate-700">Nodo 3</span>
-                </div>
-            </div>
-        </header>
-
-        <!-- Tarjetas de Telemetría en Vivo (Nodo 1 Principal) -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
-            <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
-                <p class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">Voltaje</p>
-                <p class="text-3xl font-semibold text-slate-800"><span id="lblVol">0.0</span> <span class="text-base font-normal text-slate-400">V</span></p>
-            </div>
-            <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
-                <p class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">Corriente</p>
-                <p class="text-3xl font-semibold text-slate-800"><span id="lblCur">0.00</span> <span class="text-base font-normal text-slate-400">A</span></p>
-            </div>
-            <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
-                <p class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">Potencia Activa</p>
-                <p class="text-3xl font-semibold text-slate-800"><span id="lblPow">0.0</span> <span class="text-base font-normal text-slate-400">W</span></p>
-            </div>
-            <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
-                <p class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">Energía Acumulada</p>
-                <p class="text-3xl font-semibold text-slate-800"><span id="lblEne">0.000</span> <span class="text-base font-normal text-slate-400">kWh</span></p>
-            </div>
+    <!-- Panel de Diagnóstico Dinámico por Nodo Seleccionado -->
+    <div class="stack">
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <h2>Diagnóstico · <span id="selectedTitle">N01</span></h2>
+            <p class="sub">Detalles del nodo seleccionado[cite: 4].</p>
+          </div>
         </div>
-
-        <!-- Analítica Temporal (Hoy, Semana, Mes) -->
-        <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm mb-8">
-            <h2 class="text-base font-semibold text-slate-800 mb-4">Consumo Histórico por Período</h2>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                    <p class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Hoy</p>
-                    <p class="text-xl font-bold text-slate-800" id="kwhHoy">0.000 kWh</p>
-                    <p class="text-sm font-semibold text-emerald-600 mt-1" id="costoHoy">\$ 0.00</p>
-                </div>
-                <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                    <p class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Últimos 7 Días</p>
-                    <p class="text-xl font-bold text-slate-800" id="kwhSemana">0.000 kWh</p>
-                    <p class="text-sm font-semibold text-emerald-600 mt-1" id="costoSemana">\$ 0.00</p>
-                </div>
-                <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                    <p class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Último Mes (30 días)</p>
-                    <p class="text-xl font-bold text-slate-800" id="kwhMes">0.000 kWh</p>
-                    <p class="text-sm font-semibold text-emerald-600 mt-1" id="costoMes">\$ 0.00</p>
-                </div>
-            </div>
+        <div id="nodeDetail" class="metric-strip" style="margin-bottom:16px"></div>
+        <div class="fields">
+          <div class="field">
+            <label for="selectedLimit">Umbral de potencia (W)</label>
+            <input type="number" id="selectedLimit" min="5" max="5000" value="150">
+          </div>
+          <div class="field">
+            <label for="techTariff">Tarifa COP/kWh</label>
+            <input type="number" id="techTariff" min="100" max="10000" value="850">
+          </div>
         </div>
-
-        <!-- Panel Inferior: Configuración, Alertas y Tabla -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            
-            <!-- Configuración de Tarifa y Umbrales -->
-            <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm lg:col-span-1 space-y-5">
-                <h2 class="text-base font-semibold text-slate-800">Parámetros del Sistema</h2>
-                
-                <div>
-                    <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Tarifa (COP / kWh)</label>
-                    <input type="number" id="inputTarifa" value="850" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500 font-medium" oninput="procesarDatosHistoricos()">
-                </div>
-
-                <div>
-                    <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Umbral Máx. Potencia (W)</label>
-                    <input type="number" id="inputUmbral" value="500" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500 font-medium">
-                </div>
-
-                <div class="pt-4 border-t border-slate-100">
-                    <p class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Costo Total Actual</p>
-                    <p class="text-3xl font-bold text-emerald-600" id="lblCosto">\$ 0.00</p>
-                </div>
-            </div>
-
-            <!-- Tabla de Historial y Botón de Exportar a Excel -->
-            <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm lg:col-span-2 flex flex-col justify-between">
-                <div>
-                    <div class="flex justify-between items-center mb-4">
-                        <h2 class="text-base font-semibold text-slate-800">Registro Cronológico</h2>
-                        <!-- Botón Exportar a Excel (CSV) -->
-                        <button onclick="exportarCSV()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-colors flex items-center gap-2">
-                            📥 Exportar a Excel (CSV)
-                        </button>
-                    </div>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left text-sm">
-                            <thead>
-                                <tr class="border-b border-slate-100 text-slate-400 text-xs uppercase tracking-wider">
-                                    <th class="pb-3 font-medium">Fecha y Hora</th>
-                                    <th class="pb-3 font-medium">Potencia</th>
-                                    <th class="pb-3 font-medium">Energía Acumulada</th>
-                                    <th class="pb-3 font-medium">Costo Parcial</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tablaHistorial" class="divide-y divide-slate-50 text-slate-700 font-medium">
-                                <!-- Se llena dinámicamente -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-        </div>
+        <button class="btn primary" style="width:100%;margin-top:14px" onclick="aplicarUmbral()">Actualizar Parámetros</button>
+        <div class="note" id="costNode" style="margin-top:12px;font-size:11px;color:var(--sub)">Costo estimado mensual</div>
+      </section>
     </div>
+  </div>
 
-    <script>
-        const firebaseConfig = {
-            databaseURL: "https://tesis-uan-default-rtdb.firebaseio.com/"
-        };
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.database();
+  <footer class="foot">
+    UAN · Facultad de Ingeniería · Sistema IoT con ESP32-C3 y Firebase Realtime Database.
+  </footer>
+</div>
 
-        let datosGlobalesHistorial = [];
-        let ultimaEnergia = 0;
-        let ultimoTimestampNodo1 = 0;
+<script>
+  const firebaseConfig = { databaseURL: "https://tesis-uan-default-rtdb.firebaseio.com/" };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
 
-        // 1. Escuchar datos en tiempo real del Nodo 1 + Heartbeat
-        db.ref('nodos/nodo_1/actual').on('value', (snapshot) => {
-            const data = snapshot.val();
-            if (!data) return;
+  let globalData = {};
+  let selectedNodeId = "N01";
+  let tariff = 850;
 
-            const v = Number(data.voltaje || 0);
-            const i = Number(data.corriente || 0);
-            const p = Number(data.potencia || 0);
-            const e = Number(data.energia || 0);
-            ultimaEnergia = e;
-            ultimoTimestampNodo1 = data.timestamp || 0;
+  const colors = { "N01": "#14a78c", "N02": "#499fc7", "N03": "#e8a15c" };
+  const ES = (n, d=1) => Number(n).toLocaleString('es-CO', { minimumFractionDigits: d, maximumFractionDigits: d });
+  const COP = n => '\$ ' + Math.round(n).toLocaleString('es-CO');
+  const SUM = a => a.reduce((x, y) => x + y, 0);
 
-            document.getElementById('lblVol').innerText = v.toFixed(1);
-            document.getElementById('lblCur').innerText = i.toFixed(2);
-            document.getElementById('lblPow').innerText = p.toFixed(1);
-            document.getElementById('lblEne').innerText = e.toFixed(3);
+  db.ref('nodos').on('value', (snapshot) => {
+    const data = snapshot.val();
+    if (!data) {
+      document.getElementById('conexionEstado').innerHTML = "⚠️ Sin datos en Firebase";
+      return;
+    }
+    globalData = data;
+    document.getElementById('conexionEstado').innerHTML = "🟢 Conectado a Firebase (En Vivo)";
+    
+    let totalP = 0, totalE = 0, onlineCount = 0, alertCount = 0;
+    let cardsHtml = '', tableHtml = '';
 
-            const tarifa = parseFloat(document.getElementById('inputTarifa').value) || 0;
-            document.getElementById('lblCosto').innerText = '\$ ' + (e * tarifa).toLocaleString('es-CO', {minimumFractionDigits: 1, maximumFractionDigits: 1});
+    Object.keys(data).forEach(id => {
+      let n = data[id];
+      let p = n.potencia || 0;
+      let e = n.energiaKWh || 0;
+      let v = n.voltaje || 0;
+      let c = n.corriente || 0;
+      let fp = n.factorPotencia || 0;
+      let hz = n.frecuencia || 0;
+      let umbral = n.umbral || 150;
+      let online = n.estado || false;
 
-            // Verificar Sistema de Alertas (Umbral de Potencia)
-            const umbralMax = parseFloat(document.getElementById('inputUmbral').value) || 500;
-            const banner = document.getElementById('bannerAlerta');
-            if (p > umbralMax) {
-                banner.classList.remove('hidden');
-            } else {
-                banner.classList.add('hidden');
-            }
+      totalP += p;
+      totalE += e;
+      if (online) onlineCount++;
+      let isAlert = p > umbral;
+      if (isAlert) alertCount++;
+
+      // Tarjeta de Nodo interactiva con identificador único y evento de selección limpio
+      cardsHtml += `
+        <div class="node-card ${selectedNodeId === id ? 'selected' : ''}" onclick="selectNode('${id}')">
+          <div class="node-top">
+            <span>${id} · ESP32-C3</span>
+            <span style="color:${online ? '#84e8c5' : '#ffa6a5'}">${online ? 'ONLINE' : 'OFFLINE'}</span>
+          </div>
+          <h3 style="font-size:15px;margin:8px 0 1px">${n.nombre || 'Nodo'}</h3>
+          <div class="node-value">${online ? ES(p, 0) + ' W' : '— W'}</div>
+          <div style="font-size:10px;color:var(--sub)">${v.toFixed(1)} V · FP ${fp.toFixed(2)}</div>
+          ${isAlert ? '<div style="color:#ff706f;font-size:10px;margin-top:4px;font-weight:bold">⚠️ SOBREUMBRAL</div>' : ''}
+        </div>
+      `;
+
+      // Fila de Tabla
+      tableHtml += `
+        <tr>
+          <td><b>${id}</b></td>
+          <td>${n.nombre || 'Nodo'}</td>
+          <td><span class="flag ${online ? '' : 'bad'}">${online ? 'ACTIVO' : 'INACTIVO'}</span></td>
+          <td>${online ? ES(v, 1) : '—'}</td>
+          <td>${online ? ES(c, 2) : '—'}</td>
+          <td><b>${online ? ES(p, 1) : '—'}</b></td>
+          <td>${ES(fp, 2)}</td>
+          <td>${ES(hz, 1)}</td>
+          <td>${ES(e, 3)}</td>
+        </tr>
+      `;
+    });
+
+    document.getElementById('kpiPotencia').textContent = ES(totalP, 1);
+    document.getElementById('kpiEnergia').textContent = ES(totalE, 3);
+    document.getElementById('kpiNodos').textContent = onlineCount + " / 3";
+    document.getElementById('kpiAlertas').innerHTML = `${alertCount} <span class="unit">activas</span>`;
+
+    document.getElementById('nodeCardsContainer').innerHTML = cardsHtml;
+    document.getElementById('tablaCuerpo').innerHTML = tableHtml;
+
+    updateDiagnostics();
+    renderProfileChart();
+  });
+
+  function selectNode(id) {
+    selectedNodeId = id;
+    // Actualizar clases .selected visualmente de inmediato sin esperar a Firebase
+    document.querySelectorAll('.node-card').forEach(card => card.classList.remove('selected'));
+    event.currentTarget.classList.add('selected');
+    updateDiagnostics();
+  }
+
+  function updateDiagnostics() {
+    if (!globalData || !globalData[selectedNodeId]) return;
+    let n = globalData[selectedNodeId];
+    document.getElementById('selectedTitle').textContent = `${selectedNodeId} · ${n.nombre || 'Nodo'}`;
+    document.getElementById('selectedLimit').value = n.umbral || 150;
+
+    document.getElementById('nodeDetail').innerHTML = [
+      ['Voltaje', ES(n.voltaje || 0, 1) + ' V'],
+      ['Corriente', ES(n.corriente || 0, 2) + ' A'],
+      ['Factor Potencia', ES(n.factorPotencia || 0, 2)],
+      ['Frecuencia', ES(n.frecuencia || 0, 1) + ' Hz'],
+      ['Energía Acumulada', ES(n.energiaKWh || 0, 3) + ' kWh'],
+      ['Estado Nodo', n.estado ? 'Conectado' : 'Sin respuesta']
+    ].map(a => `<div class="metric"><small>${a[0]}</small><strong>${a[1]}</strong></div>`).join('');
+
+    let costMonth = (n.energiaKWh || 0) * 30 * tariff;
+    document.getElementById('costNode').innerHTML = `Costo estimado de ${n.nombre}: <b>${COP(costMonth)} / 30 días</b> usando ${COP(tariff)} COP/kWh.`;
+  }
+
+  function aplicarUmbral() {
+    let nuevoUmbral = Number(document.getElementById('selectedLimit').value);
+    tariff = Number(document.getElementById('techTariff').value);
+    if(Number.isFinite(nuevoUmbral)) {
+      db.ref(`nodos/${selectedNodeId}`).update({ umbral: nuevoUmbral });
+      alert("¡Parámetros actualizados correctamente!");
+    }
+  }
+
+  function renderProfileChart() {
+    const svg = document.getElementById('techProfile');
+    const selectVal = document.getElementById('traceSelect').value;
+    if (!svg || !globalData) return;
+    
+    let series = [];
+    const nodeKeys = Object.keys(globalData);
+
+    if (selectVal === 'sum') {
+      // Suma total de los nodos en cada hora
+      let sumValues = Array(24).fill(0);
+      nodeKeys.forEach(id => {
+        let prof = globalData[id].profile || Array(24).fill(globalData[id].potencia || 0);
+        for(let i=0; i<24; i++) sumValues[i] += (prof[i] || 0);
+      });
+      series.push({ name: 'Total del conjunto', color: '#45e0d0', values: sumValues });
+    } else if (selectVal === 'all') {
+      // Las tres cargas por separado
+      nodeKeys.forEach(id => {
+        let n = globalData[id];
+        series.push({
+          name: n.nombre || id,
+          color: colors[id] || '#36d4c4',
+          values: n.profile || Array(24).fill(n.potencia || 0)
         });
-
-        // 2. Monitor de Salud (Heartbeat Check cada 3 segundos)
-        setInterval(() => {
-            const dot = document.getElementById('dotNodo1');
-            const ahora = Date.now();
-            // Si el último reporte tiene más de 10 segundos de antigüedad, marcar como desconectado
-            if (ultimoTimestampNodo1 > 0 && (ahora - ultimoTimestampNodo1) < 10000) {
-                dot.className = "w-3 h-3 rounded-full bg-emerald-500 animate-pulse"; // En línea
-            } else {
-                dot.className = "w-3 h-3 rounded-full bg-rose-500 animate-ping"; // Desconectado / Sin señal
-            }
-        }, 3000);
-
-        // 3. Cargar historial para analítica y tabla
-        db.ref('nodos/nodo_1/historial').on('value', (snapshot) => {
-            const data = snapshot.val();
-            if (!data) return;
-
-            datosGlobalesHistorial = [];
-            const tabla = document.getElementById('tablaHistorial');
-            tabla.innerHTML = '';
-
-            Object.keys(data).forEach(key => {
-                datosGlobalesHistorial.push(data[key]);
-            });
-
-            datosGlobalesHistorial.sort((a, b) => b.timestamp - a.timestamp);
-
-            const ultimos = datosGlobalesHistorial.slice(0, 7);
-            const tarifa = parseFloat(document.getElementById('inputTarifa').value) || 850;
-
-            ultimos.forEach(item => {
-                const p = Number(item.potencia || 0);
-                const e = Number(item.energia || 0);
-                let fechaFormateada = item.timestamp ? new Date(item.timestamp).toLocaleString('es-CO') : "Reciente";
-
-                const fila = `
-                    <tr class="hover:bg-slate-50/50 transition-colors">
-                        <td class="py-3 text-slate-500 text-xs">${fechaFormateada}</td>
-                        <td class="py-3">${p.toFixed(1)} W</td>
-                        <td class="py-3">${e.toFixed(3)} kWh</td>
-                        <td class="py-3 text-emerald-600 font-semibold">$ ${(e * tarifa).toFixed(1)}</td>
-                    </tr>
-                `;
-                tabla.insertAdjacentHTML('beforeend', fila);
-            });
-
-            procesarDatosHistoricos();
+      });
+    } else {
+      // Un solo nodo seleccionado
+      let n = globalData[selectVal];
+      if (n) {
+        series.push({
+          name: n.nombre || selectVal,
+          color: colors[selectVal] || '#36d4c4',
+          values: n.profile || Array(24).fill(n.potencia || 0)
         });
+      }
+    }
 
-        function procesarDatosHistoricos() {
-            if (datosGlobalesHistorial.length === 0) return;
+    const W = 940, H = 220, l = 45, r = 15, t = 20, b = 30;
+    let maxVal = 200;
+    series.forEach(s => { s.values.forEach(v => { if(v > maxVal) maxVal = Math.ceil(v * 1.2 / 50) * 50; }); });
 
-            const ahora = Date.now();
-            const unDiaMS = 24 * 60 * 60 * 1000;
-            const tarifa = parseFloat(document.getElementById('inputTarifa').value) || 850;
+    const sx = i => l + (W - l - r) * i / 23;
+    const sy = v => H - b - (H - t - b) * v / maxVal;
 
-            const regHoy = datosGlobalesHistorial.filter(item => (ahora - item.timestamp) <= unDiaMS);
-            const regSemana = datosGlobalesHistorial.filter(item => (ahora - item.timestamp) <= (7 * unDiaMS));
-            const regMes = datosGlobalesHistorial.filter(item => (ahora - item.timestamp) <= (30 * unDiaMS));
+    let h = '';
+    for(let i=0; i<=4; i++) {
+      let yy = H - b - (H - t - b) * i / 4;
+      h += `<line x1="${l}" x2="${W-r}" y1="${yy}" y2="${yy}" stroke="var(--grid)" stroke-dasharray="4 4"/>`;
+      h += `<text x="${l-6}" y="${yy+4}" text-anchor="end" fill="var(--sub)" font-size="10">${Math.round(maxVal*i/4)}</text>`;
+    }
+    for(let i=0; i<24; i+=3) {
+      h += `<text x="${sx(i)}" y="${H-10}" text-anchor="middle" font-size="10" fill="var(--sub)">${String(i).padStart(2,'0')}:00</text>`;
+    }
 
-            function calcularConsumo(registros) {
-                if (registros.length < 2) return 0;
-                let consumo = Number(registros[0].energia || 0) - Number(registros[registros.length - 1].energia || 0);
-                return consumo < 0 ? 0 : consumo;
-            }
+    series.forEach((q, idx) => {
+      let path = q.values.map((v, i) => `${i ? 'L' : 'M'} ${sx(i).toFixed(1)} ${sy(v).toFixed(1)}`).join(' ');
+      h += `<path d="${path}" fill="none" stroke="${q.color}" stroke-width="${idx === 0 ? 3 : 2}" stroke-linecap="round"/>`;
+    });
 
-            const kwhHoy = calcularConsumo(regHoy);
-            const kwhSemana = calcularConsumo(regSemana);
-            const kwhMes = calcularConsumo(regMes);
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.innerHTML = h;
 
-            document.getElementById('kwhHoy').innerText = kwhHoy.toFixed(3) + " kWh";
-            document.getElementById('costoHoy').innerText = "\$ " + (kwhHoy * tarifa).toLocaleString('es-CO', {maximumFractionDigits: 1});
+    document.getElementById('techLegend').innerHTML = series.map(s => `<span><i style="background:${s.color}"></i>${s.name}</span>`).join('');
+  }
 
-            document.getElementById('kwhSemana').innerText = kwhSemana.toFixed(3) + " kWh";
-            document.getElementById('costoSemana').innerText = "\$ " + (kwhSemana * tarifa).toLocaleString('es-CO', {maximumFractionDigits: 1});
-
-            document.getElementById('kwhMes').innerText = kwhMes.toFixed(3) + " kWh";
-            document.getElementById('costoMes').innerText = "\$ " + (kwhMes * tarifa).toLocaleString('es-CO', {maximumFractionDigits: 1});
-        }
-
-        // 4. Función para Exportar Historial a CSV (Compatible con Excel)
-        function exportarCSV() {
-            if (datosGlobalesHistorial.length === 0) {
-                alert("No hay datos históricos disponibles para exportar.");
-                return;
-            }
-
-            let csvContent = "data:text/csv;charset=utf-8,Fecha_Hora,Potencia_W,Energia_kWh\n";
-            
-            datosGlobalesHistorial.forEach(item => {
-                let fecha = item.timestamp ? new Date(item.timestamp).toISOString() : "";
-                let linea = `"${fecha}",${item.potencia},${item.energia}`;
-                csvContent += linea + "\r\n";
-            });
-
-            const encodedUri = encodeURI(csvContent);
-            const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", "historial_energia_tesis.csv");
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
-    </script>
+  function exportarCSV() {
+    if (!globalData) return;
+    let csv = "\ufeffNodo;Nombre;Voltaje(V);Corriente(A);Potencia(W);FactorPotencia;Frecuencia(Hz);Energia(kWh)\n";
+    Object.keys(globalData).forEach(id => {
+      let n = globalData[id];
+      csv += `${id};${n.nombre};${n.voltaje};${n.corriente};${n.potencia};${n.factorPotencia};${n.frecuencia};${n.energiaKWh}\n`;
+    });
+    let blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    let url = URL.createObjectURL(blob);
+    let a = document.createElement('a');
+    a.href = url;
+    a.download = "UAN_Telemetria_Nodos.csv";
+    a.click();
+  }
+</script>
 </body>
 </html>
