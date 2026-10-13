@@ -200,7 +200,7 @@ td{padding:12px 11px;border-bottom:1px solid var(--outline)}
     <div class="card-head">
       <div>
         <h2>Registro Cronológico / Historial de Datos</h2>
-        <p class="sub">Almacenamiento permanente de lecturas recolectadas en Firebase.</p>
+        <p class="sub">Almacenamiento permanente de lecturas recolectadas en Firebase con fecha real.</p>
       </div>
       <button class="btn primary" onclick="exportarCSVHistorico()">📥 Exportar a Excel (CSV)</button>
     </div>
@@ -236,15 +236,12 @@ td{padding:12px 11px;border-bottom:1px solid var(--outline)}
   let globalHistorico = {};
   let selectedNodeId = "N01";
   let tariff = 850;
-  
-  // Guardamos el momento exacto (timestamp) del último paquete recibido de cada nodo
-  let ultimosLatidos = { "N01": 0, "N02": 0, "N03": 0 };
 
   const colors = { "N01": "#14a78c", "N02": "#499fc7", "N03": "#e8a15c" };
   const ES = (n, d=1) => Number(n).toLocaleString('es-CO', { minimumFractionDigits: d, maximumFractionDigits: d });
   const COP = n => '\$ ' + Math.round(n).toLocaleString('es-CO');
 
-  // 1. Escuchar Nodos en Vivo con Validación Estricta de Latido (8 segundos)
+  // 1. Escuchar Nodos en Vivo con Validación Estricta de Timeout por Timestamp Real (10 segundos)
   db.ref('nodos').on('value', (snapshot) => {
     const data = snapshot.val();
     if (!data) return;
@@ -253,19 +250,15 @@ td{padding:12px 11px;border-bottom:1px solid var(--outline)}
     
     let totalP = 0, totalE = 0, onlineCount = 0, alertCount = 0;
     let cardsHtml = '', tableHtml = '';
-    let tiempoActual = Date.now();
+    let tiempoActualPC = Date.now(); // Hora real del navegador
 
     Object.keys(data).forEach(id => {
       let n = data[id];
+      let timestampNodo = n.timestamp || 0;
 
-      // Si Firebase reporta estado true, actualizamos el latido de este nodo
-      if (n.estado === true) {
-        ultimosLatidos[id] = tiempoActual;
-      }
-
-      // REGLA ESTRICTA DE TIMEOUT: Si pasan más de 8 segundos sin señal real, se fuerza a false (OFFLINE)
-      let ultimaVez = ultimosLatidos[id] || 0;
-      let estaRealmenteOnline = (tiempoActual - ultimaVez < 8000) && (n.estado === true);
+      // VALIDACIÓN BLINDADA: Si el último timestamp recibido tiene más de 10 segundos (10000 ms) de antigüedad, está OFFLINE
+      let diferenciaTiempo = tiempoActualPC - timestampNodo;
+      let estaRealmenteOnline = (diferenciaTiempo < 10000) && (n.estado === true);
 
       let p = estaRealmenteOnline ? (n.potencia || 0) : 0;
       let e = n.energiaKWh || 0;
@@ -321,7 +314,7 @@ td{padding:12px 11px;border-bottom:1px solid var(--outline)}
     renderProfileChart();
   });
 
-  // 2. Escuchar Historial Cronológico en Firebase
+  // 2. Escuchar Historial Cronológico en Firebase (Muestra la fecha real NTP)
   db.ref('historico').limitToLast(50).on('value', (snapshot) => {
     const data = snapshot.val();
     if (!data) {
@@ -334,10 +327,10 @@ td{padding:12px 11px;border-bottom:1px solid var(--outline)}
     const keys = Object.keys(data).reverse();
     keys.forEach(key => {
       let item = data[key];
-      let fechaLegible = new Date(item.timestamp || Date.now()).toLocaleString();
+      let fechaTexto = item.fechaHora || "Sincronizando...";
       histHtml += `
         <tr>
-          <td><code>${fechaLegible}</code></td>
+          <td><code>${fechaTexto}</code></td>
           <td><b>${item.nodo || 'N/A'}</b></td>
           <td>${item.nombre || 'Nodo'}</td>
           <td>${ES(item.potencia || 0, 1)} W</td>
@@ -361,8 +354,8 @@ td{padding:12px 11px;border-bottom:1px solid var(--outline)}
     document.getElementById('selectedTitle').textContent = `${selectedNodeId} · ${n.nombre || 'Nodo'}`;
     document.getElementById('selectedLimit').value = n.umbral || 150;
 
-    let ultimaVez = ultimosLatidos[selectedNodeId] || 0;
-    let estaOnline = (Date.now() - ultimaVez < 8000) && (n.estado === true);
+    let diferenciaTiempo = Date.now() - (n.timestamp || 0);
+    let estaOnline = (diferenciaTiempo < 10000) && (n.estado === true);
 
     document.getElementById('nodeDetail').innerHTML = [
       ['Voltaje', estaOnline ? ES(n.voltaje || 0, 1) + ' V' : '0.0 V'],
@@ -469,8 +462,7 @@ td{padding:12px 11px;border-bottom:1px solid var(--outline)}
     let csv = "\ufeffFecha_Hora;Nodo;Nombre;Potencia(W);Energia(kWh)\n";
     Object.keys(globalHistorico).forEach(key => {
       let item = globalHistorico[key];
-      let fechaLegible = new Date(item.timestamp || Date.now()).toLocaleString();
-      csv += `"${fechaLegible}";${item.nodo};${item.nombre};${item.potencia};${item.energiaKWh}\n`;
+      csv += `"${item.fechaHora || 'N/A'}";${item.nodo};${item.nombre};${item.potencia};${item.energiaKWh}\n`;
     });
     let blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     let url = URL.createObjectURL(blob);
