@@ -107,7 +107,7 @@ td{padding:12px 11px;border-bottom:1px solid var(--outline)}
     <div class="card-head">
       <div>
         <h2>Estado de los Tres Dispositivos</h2>
-        <p class="sub">Seleccione un nodo haciendo clic sobre él para inspeccionar su diagnóstico detallado[cite: 4].</p>
+        <p class="sub">Seleccione un nodo haciendo clic sobre él para inspeccionar su diagnóstico detallado.</p>
       </div>
       <span class="flag">3 Canales Activos</span>
     </div>
@@ -117,12 +117,12 @@ td{padding:12px 11px;border-bottom:1px solid var(--outline)}
   <!-- Main Grid: Gráficos y Diagnóstico -->
   <div class="main-grid">
     <div class="stack">
-      <!-- Gráfico SVG de Perfiles con Selector de Visualización -->
+      <!-- Gráfico SVG de Perfiles -->
       <section class="card">
         <div class="card-head">
           <div>
             <h2>Perfiles horarios por carga</h2>
-            <p class="sub">Curvas de potencia comparativa[cite: 4].</p>
+            <p class="sub">Curvas de potencia comparativa.</p>
           </div>
           <div class="inlinefield">
             <label for="traceSelect" style="font-size:11px;color:var(--sub);font-weight:750">Visualización</label>
@@ -144,9 +144,9 @@ td{padding:12px 11px;border-bottom:1px solid var(--outline)}
         <div class="card-head">
           <div>
             <h2>Inventario Instrumental</h2>
-            <p class="sub">Voltaje, corriente, potencia, factor de potencia y frecuencia.</p>
+            <p class="sub">Voltaje, corriente, potencia, factor de potencia y frecuencia actual.</p>
           </div>
-          <button class="btn primary" onclick="exportarCSV()">↓ Tabla CSV</button>
+          <button class="btn primary" onclick="exportarCSVInventario()">↓ Tabla CSV</button>
         </div>
         <div class="tablewrap">
           <table>
@@ -175,7 +175,7 @@ td{padding:12px 11px;border-bottom:1px solid var(--outline)}
         <div class="card-head">
           <div>
             <h2>Diagnóstico · <span id="selectedTitle">N01</span></h2>
-            <p class="sub">Detalles del nodo seleccionado[cite: 4].</p>
+            <p class="sub">Detalles del nodo seleccionado.</p>
           </div>
         </div>
         <div id="nodeDetail" class="metric-strip" style="margin-bottom:16px"></div>
@@ -195,6 +195,33 @@ td{padding:12px 11px;border-bottom:1px solid var(--outline)}
     </div>
   </div>
 
+  <!-- REGISTRO CRONOLÓGICO / HISTORIAL DE DATOS -->
+  <section class="card">
+    <div class="card-head">
+      <div>
+        <h2>Registro Cronológico / Historial de Datos</h2>
+        <p class="sub">Almacenamiento permanente de lecturas recolectadas en Firebase.</p>
+      </div>
+      <button class="btn primary" onclick="exportarCSVHistorico()">📥 Exportar a Excel (CSV)</button>
+    </div>
+    <div class="tablewrap" style="max-height: 300px; overflow-y: auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>FECHA Y HORA (MS)</th>
+            <th>NODO ID</th>
+            <th>NOMBRE</th>
+            <th>POTENCIA (W)</th>
+            <th>ENERGÍA (kWh)</th>
+          </tr>
+        </thead>
+        <tbody id="tablaHistorico">
+          <tr><td colspan="5" style="text-align:center;color:var(--sub)">Cargando historial...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
   <footer class="foot">
     UAN · Facultad de Ingeniería · Sistema IoT con ESP32-C3 y Firebase Realtime Database.
   </footer>
@@ -206,20 +233,18 @@ td{padding:12px 11px;border-bottom:1px solid var(--outline)}
   const db = firebase.database();
 
   let globalData = {};
+  let globalHistorico = {};
   let selectedNodeId = "N01";
   let tariff = 850;
 
   const colors = { "N01": "#14a78c", "N02": "#499fc7", "N03": "#e8a15c" };
   const ES = (n, d=1) => Number(n).toLocaleString('es-CO', { minimumFractionDigits: d, maximumFractionDigits: d });
   const COP = n => '\$ ' + Math.round(n).toLocaleString('es-CO');
-  const SUM = a => a.reduce((x, y) => x + y, 0);
 
+  // 1. Escuchar Nodos en Vivo
   db.ref('nodos').on('value', (snapshot) => {
     const data = snapshot.val();
-    if (!data) {
-      document.getElementById('conexionEstado').innerHTML = "⚠️ Sin datos en Firebase";
-      return;
-    }
+    if (!data) return;
     globalData = data;
     document.getElementById('conexionEstado').innerHTML = "🟢 Conectado a Firebase (En Vivo)";
     
@@ -243,7 +268,6 @@ td{padding:12px 11px;border-bottom:1px solid var(--outline)}
       let isAlert = p > umbral;
       if (isAlert) alertCount++;
 
-      // Tarjeta de Nodo interactiva con identificador único y evento de selección limpio
       cardsHtml += `
         <div class="node-card ${selectedNodeId === id ? 'selected' : ''}" onclick="selectNode('${id}')">
           <div class="node-top">
@@ -257,7 +281,6 @@ td{padding:12px 11px;border-bottom:1px solid var(--outline)}
         </div>
       `;
 
-      // Fila de Tabla
       tableHtml += `
         <tr>
           <td><b>${id}</b></td>
@@ -285,9 +308,36 @@ td{padding:12px 11px;border-bottom:1px solid var(--outline)}
     renderProfileChart();
   });
 
+  // 2. Escuchar Historial Cronológico en Firebase
+  db.ref('historico').limitToLast(50).on('value', (snapshot) => {
+    const data = snapshot.val();
+    if (!data) {
+      document.getElementById('tablaHistorico').innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--sub)">Sin registros históricos aún.</td></tr>`;
+      return;
+    }
+    globalHistorico = data;
+    let histHtml = '';
+    
+    // Invertir para mostrar los más recientes arriba
+    const keys = Object.keys(data).reverse();
+    keys.forEach(key => {
+      let item = data[key];
+      let fechaLegible = new Date(item.timestamp || Date.now()).toLocaleString();
+      histHtml += `
+        <tr>
+          <td><code>${fechaLegible}</code></td>
+          <td><b>${item.nodo || 'N/A'}</b></td>
+          <td>${item.nombre || 'Nodo'}</td>
+          <td>${ES(item.potencia || 0, 1)} W</td>
+          <td>${ES(item.energiaKWh || 0, 3)} kWh</td>
+        </tr>
+      `;
+    });
+    document.getElementById('tablaHistorico').innerHTML = histHtml;
+  });
+
   function selectNode(id) {
     selectedNodeId = id;
-    // Actualizar clases .selected visualmente de inmediato sin esperar a Firebase
     document.querySelectorAll('.node-card').forEach(card => card.classList.remove('selected'));
     event.currentTarget.classList.add('selected');
     updateDiagnostics();
@@ -330,7 +380,6 @@ td{padding:12px 11px;border-bottom:1px solid var(--outline)}
     const nodeKeys = Object.keys(globalData);
 
     if (selectVal === 'sum') {
-      // Suma total de los nodos en cada hora
       let sumValues = Array(24).fill(0);
       nodeKeys.forEach(id => {
         let prof = globalData[id].profile || Array(24).fill(globalData[id].potencia || 0);
@@ -338,7 +387,6 @@ td{padding:12px 11px;border-bottom:1px solid var(--outline)}
       });
       series.push({ name: 'Total del conjunto', color: '#45e0d0', values: sumValues });
     } else if (selectVal === 'all') {
-      // Las tres cargas por separado
       nodeKeys.forEach(id => {
         let n = globalData[id];
         series.push({
@@ -348,7 +396,6 @@ td{padding:12px 11px;border-bottom:1px solid var(--outline)}
         });
       });
     } else {
-      // Un solo nodo seleccionado
       let n = globalData[selectVal];
       if (n) {
         series.push({
@@ -387,7 +434,7 @@ td{padding:12px 11px;border-bottom:1px solid var(--outline)}
     document.getElementById('techLegend').innerHTML = series.map(s => `<span><i style="background:${s.color}"></i>${s.name}</span>`).join('');
   }
 
-  function exportarCSV() {
+  function exportarCSVInventario() {
     if (!globalData) return;
     let csv = "\ufeffNodo;Nombre;Voltaje(V);Corriente(A);Potencia(W);FactorPotencia;Frecuencia(Hz);Energia(kWh)\n";
     Object.keys(globalData).forEach(id => {
@@ -398,7 +445,23 @@ td{padding:12px 11px;border-bottom:1px solid var(--outline)}
     let url = URL.createObjectURL(blob);
     let a = document.createElement('a');
     a.href = url;
-    a.download = "UAN_Telemetria_Nodos.csv";
+    a.download = "UAN_Inventario_Actual.csv";
+    a.click();
+  }
+
+  function exportarCSVHistorico() {
+    if (!globalHistorico) return;
+    let csv = "\ufeffFecha_Hora;Nodo;Nombre;Potencia(W);Energia(kWh)\n";
+    Object.keys(globalHistorico).forEach(key => {
+      let item = globalHistorico[key];
+      let fechaLegible = new Date(item.timestamp || Date.now()).toLocaleString();
+      csv += `"${fechaLegible}";${item.nodo};${item.nombre};${item.potencia};${item.energiaKWh}\n`;
+    });
+    let blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    let url = URL.createObjectURL(blob);
+    let a = document.createElement('a');
+    a.href = url;
+    a.download = "UAN_Registro_Cronologico.csv";
     a.click();
   }
 </script>
