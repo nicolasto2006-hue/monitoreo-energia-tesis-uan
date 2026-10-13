@@ -236,13 +236,15 @@ td{padding:12px 11px;border-bottom:1px solid var(--outline)}
   let globalHistorico = {};
   let selectedNodeId = "N01";
   let tariff = 850;
-  let ultimosLatidos = {}; // Control de tiempo para saber si el nodo está realmente online
+  
+  // Guardamos el momento exacto (timestamp) del último paquete recibido de cada nodo
+  let ultimosLatidos = { "N01": 0, "N02": 0, "N03": 0 };
 
   const colors = { "N01": "#14a78c", "N02": "#499fc7", "N03": "#e8a15c" };
   const ES = (n, d=1) => Number(n).toLocaleString('es-CO', { minimumFractionDigits: d, maximumFractionDigits: d });
   const COP = n => '\$ ' + Math.round(n).toLocaleString('es-CO');
 
-  // 1. Escuchar Nodos en Vivo con Detección de Desconexión (Timeout)
+  // 1. Escuchar Nodos en Vivo con Validación Estricta de Latido (8 segundos)
   db.ref('nodos').on('value', (snapshot) => {
     const data = snapshot.val();
     if (!data) return;
@@ -256,14 +258,14 @@ td{padding:12px 11px;border-bottom:1px solid var(--outline)}
     Object.keys(data).forEach(id => {
       let n = data[id];
 
-      // Registrar latido si el nodo reporta activo
+      // Si Firebase reporta estado true, actualizamos el latido de este nodo
       if (n.estado === true) {
         ultimosLatidos[id] = tiempoActual;
       }
 
-      // Si pasan más de 10 segundos sin señal nueva, se fuerza a OFFLINE de forma automática
+      // REGLA ESTRICTA DE TIMEOUT: Si pasan más de 8 segundos sin señal real, se fuerza a false (OFFLINE)
       let ultimaVez = ultimosLatidos[id] || 0;
-      let estaRealmenteOnline = (tiempoActual - ultimaVez < 10000) && (n.estado === true);
+      let estaRealmenteOnline = (tiempoActual - ultimaVez < 8000) && (n.estado === true);
 
       let p = estaRealmenteOnline ? (n.potencia || 0) : 0;
       let e = n.energiaKWh || 0;
@@ -359,13 +361,16 @@ td{padding:12px 11px;border-bottom:1px solid var(--outline)}
     document.getElementById('selectedTitle').textContent = `${selectedNodeId} · ${n.nombre || 'Nodo'}`;
     document.getElementById('selectedLimit').value = n.umbral || 150;
 
+    let ultimaVez = ultimosLatidos[selectedNodeId] || 0;
+    let estaOnline = (Date.now() - ultimaVez < 8000) && (n.estado === true);
+
     document.getElementById('nodeDetail').innerHTML = [
-      ['Voltaje', ES(n.voltaje || 0, 1) + ' V'],
-      ['Corriente', ES(n.corriente || 0, 2) + ' A'],
+      ['Voltaje', estaOnline ? ES(n.voltaje || 0, 1) + ' V' : '0.0 V'],
+      ['Corriente', estaOnline ? ES(n.corriente || 0, 2) + ' A' : '0.00 A'],
       ['Factor Potencia', ES(n.factorPotencia || 0, 2)],
       ['Frecuencia', ES(n.frecuencia || 0, 1) + ' Hz'],
       ['Energía Acumulada', ES(n.energiaKWh || 0, 3) + ' kWh'],
-      ['Estado Nodo', n.estado ? 'Conectado' : 'Sin respuesta']
+      ['Estado Nodo', estaOnline ? 'Conectado' : 'Sin respuesta (Offline)']
     ].map(a => `<div class="metric"><small>${a[0]}</small><strong>${a[1]}</strong></div>`).join('');
 
     let costMonth = (n.energiaKWh || 0) * 30 * tariff;
